@@ -1,0 +1,31 @@
+{
+  "name": "package-community",
+  "version": "0.0.0",
+  "description": "Visualizations and representations to show the quality of community support for software packages.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andrewhead/package-community.git"
+  },
+  "keywords": [
+    "community",
+    "programming",
+    "stackoverflow",
+    "support",
+    "visualizations"
+  ],
+  "author": "Andrew Head",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/andrewhead/package-community/issues"
+  },
+  "homepage": "https://github.com/andrewhead/package-community",
+  "dependencies": {
+    "d3": "^3.5.16",
+    "jsdom": "^8.1.0",
+    "phantomjs-prebuilt": "^2.1.7"
+  }
+}
