@@ -151,7 +151,7 @@ var makeVisualization = function (window, d3, callback) {
     graph.append('style')
       .html(styleString);
 
-    var addBadges = function(graph, data, titleTextDim, valueTextDim) {
+    var addBadges = function(graph, data, showValuesAsRectangles, titleTextDim, valueTextDim) {
 
         if (titleTextDim === undefined) {
             titleTextDim = { width: 40, height: 12 };
@@ -239,17 +239,45 @@ var makeVisualization = function (window, d3, callback) {
           .attr('y', titleDim.height - 5)
           .text("views");
 
-        textGroups.append('text')
-          .attr('class', 'value_text')
-          .attr('fill-opacity', '.3')
-          .attr('fill', '#010101')
-          .attr('x', titleDim.width + 4)
-          .attr('y', valueDim.height - 4)
-          .text(function(d) { return d.viewRate.toFixed(2) + " / day"; });
-        textGroups.append('text')
-          .attr('x', titleDim.width + 4)
-          .attr('y', valueDim.height - 5)
-          .text(function(d) { return d.viewRate.toFixed(2) + " / day"; });
+        if (showValuesAsRectangles) {
+            textGroups.append('rect')
+              .attr('fill-opacity', '.3')
+              .attr('fill', '#010101')
+              .attr('x', titleDim.width + 4)
+              .attr('y', 5)
+              .attr('width', 0)
+              .attr('height', valueDim.height - 8)
+              .append('animate')
+                .attr('attributeName', 'width')
+                .attr('from', 0)
+                .attr('to', valueDim.width - 10)
+                .attr('dur', function(d) { return (3 / d.viewRate).toFixed(2) + 's'; })
+                .attr('repeatCount', 'indefinite');
+            textGroups.append('rect')
+              .attr('fill', 'white')
+              .attr('x', titleDim.width + 4)
+              .attr('y', 4)
+              .attr('width', 0)
+              .attr('height', valueDim.height - 8)
+              .append('animate')
+                .attr('attributeName', 'width')
+                .attr('from', 0)
+                .attr('to', valueDim.width - 10)
+                .attr('dur', function(d) { return (3 / d.viewRate).toFixed(2) + 's'; })
+                .attr('repeatCount', 'indefinite');
+        } else {
+            textGroups.append('text')
+              .attr('class', 'value_text')
+              .attr('fill-opacity', '.3')
+              .attr('fill', '#010101')
+              .attr('x', titleDim.width + 4)
+              .attr('y', valueDim.height - 4)
+              .text(function(d) { return d.viewRate.toFixed(2) + " / day"; });
+            textGroups.append('text')
+              .attr('x', titleDim.width + 4)
+              .attr('y', valueDim.height - 5)
+              .text(function(d) { return d.viewRate.toFixed(2) + " / day"; });
+        }
 
     };
 
@@ -260,10 +288,9 @@ var makeVisualization = function (window, d3, callback) {
     getTextSize(quotedHtml, '.title_text', function(titleTextSize) {
         getTextSize(quotedHtml, '.value_text', function(valueTextSize) {
 
-            console.log(titleTextSize.height);
-
             graph.selectAll('.badge').remove();
-            addBadges(graph, data, titleTextSize, valueTextSize);
+            // addBadges(graph, data, false, titleTextSize, valueTextSize);
+            addBadges(graph, data, true, titleTextSize);
             callback();
 
         });
