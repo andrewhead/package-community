@@ -1,3 +1,4 @@
+var _ = require('underscore');
 var SvgRuler = require('./svg_ruler').SvgRuler;
 var svgRuler = new SvgRuler();
 
@@ -10,27 +11,38 @@ var BadgeAdder = function() {
  * SVG should be a D3 selection of an SVG.
  * D3 methods will be called extensively on this object.
  */
-BadgeAdder.prototype.addBadges = function(
-    svg, data, titleText, callback, fillValueFunc, valueContentWidth) {
-
-    // Best guesses for evenly spacing badges in the SVG
-    var BADGE_WIDTH = 110;
-    var BADGE_HEIGHT = 30;
-    var COLUMN_COUNT = 5;
-    var COLUMN_PADDING = 15;
-    var ROW_PADDING = 10;
-    var ROW_COUNT = Math.ceil((data.length) / COLUMN_COUNT);  // may overestimate by 1
+BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, callerOptions) {
+    
+    var defaultOptions = {
+        fillContentFunc: undefined,
+        contentWidth: undefined,
+        layout: {
+            badgeWidth: 110,
+            badgeHeight: 30,
+            columnCount: 5,
+            columnPadding: 15,
+            rowPadding: 5,
+            rowCount: Math.ceil((data.length) / 5)
+        }
+    };
+    var options = _.extend({}, defaultOptions, callerOptions);
 
     // Set size to let the SVG hold all the content
-    svg.attr('width', BADGE_WIDTH * COLUMN_COUNT + COLUMN_PADDING * (COLUMN_COUNT - 1))
-      .attr('height', BADGE_HEIGHT * ROW_COUNT + ROW_PADDING * (ROW_COUNT - 1));
+    var layout = options.layout;
+    var width = (
+        layout.badgeWidth * layout.columnCount +
+        layout.columnPadding * (layout.columnCount - 1)
+    );
+    var height = (
+        layout.badgeHeight * layout.rowCount +
+        layout.rowPadding * (layout.rowCount - 1)
+    );
+    svg.attr('width', width).attr('height', height);
 
     // Add fonts necessary to render the text
     var styleString = '';
     var fontIndex;
-    var FONT_URLS = [
-       'http://fonts.googleapis.com/css?family=Open+Sans'
-    ];
+    var FONT_URLS = ['http://fonts.googleapis.com/css?family=Open+Sans'];
     for (fontIndex = 0; fontIndex < FONT_URLS.length; fontIndex++) {
         if (fontIndex !== 0) {
             styleString += '\n';
@@ -40,20 +52,20 @@ BadgeAdder.prototype.addBadges = function(
     svg.append('style')
       .html(styleString);
 
-    var addContent = function(titleTextSize, valueContentSize) {
+    var addContent = function(titleTextSize, contentSize) {
 
         var titleSize = { width: titleTextSize.width + 10, height: titleTextSize.height + 8 };
-        var valueSize = { width: valueContentSize.width + 10, height: valueContentSize.height + 8 };
+        var contentBoxSize = { width: contentSize.width + 10, height: contentSize.height + 8 };
 
         var badges = svg.selectAll('g').data(data);
         badges.enter()
           .append('g')
             .attr('class', 'badge')
             .attr('transform', function(_, i) {
-                var row = Math.floor(i / COLUMN_COUNT);
-                var col = i % COLUMN_COUNT;
-                var x = col * (BADGE_WIDTH + COLUMN_PADDING);
-                var y = row * (BADGE_HEIGHT + ROW_PADDING);
+                var row = Math.floor(i / layout.columnCount);
+                var col = i % layout.columnCount;
+                var x = col * (layout.badgeWidth + layout.columnPadding);
+                var y = row * (layout.badgeHeight + layout.rowPadding);
                 return 'translate(' + x + ',' + y + ')'; 
             });
 
@@ -84,7 +96,7 @@ BadgeAdder.prototype.addBadges = function(
             .attr('fill', '#fff')
             .attr('rx', '3')
             .attr('height', titleSize.height)
-            .attr('width', titleSize.width + valueSize.width);
+            .attr('width', titleSize.width + contentBoxSize.width);
 
         var colorings = titleRects.append('g')
           .attr('mask', function(_, i) { return 'url(#mask' + i + ')'; });
@@ -94,12 +106,12 @@ BadgeAdder.prototype.addBadges = function(
           .attr('fill', '#555');
         colorings.append('path')
           .attr('d', 'M ' + titleSize.width + ' 0 ' + 
-                ' h ' + valueSize.width +
-                ' v ' + valueSize.height +
+                ' h ' + contentBoxSize.width +
+                ' v ' + contentBoxSize.height +
                 ' H ' + titleSize.width + ' z')
           .attr('fill', '#4c1');
         colorings.append('path')
-          .attr('d', 'M 0 0 h ' + (titleSize.width + valueSize.width) + 
+          .attr('d', 'M 0 0 h ' + (titleSize.width + contentBoxSize.width) + 
                 ' v ' + titleSize.height + ' H 0 z')
           .attr('fill', function(_, i) { return 'url(#gradient' + i + ')'; });
 
@@ -121,27 +133,27 @@ BadgeAdder.prototype.addBadges = function(
           .attr('y', titleSize.height - 5)
           .text(titleText);
 
-        var valueGroups = titleRects.append('g')
+        var contentGroups = titleRects.append('g')
           .attr('font-size', '11')
           .attr('font-family', 'Open Sans')
           .attr('text-anchor', 'left')
           .attr('fill', '#fff')
           .attr('transform', 'translate(' + titleSize.width + ',0)');
 
-        if (fillValueFunc === undefined) {
-            valueGroups.append('text')
-              .attr('class', 'value_text')
+        if (options.fillContentFunc === undefined) {
+            contentGroups.append('text')
+              .attr('class', 'content_text')
               .attr('fill-opacity', '.3')
               .attr('fill', '#010101')
               .attr('x', titleSize.width + 4)
-              .attr('y', valueSize.height - 4)
-              .text(function(d) { return d.value; });
-            valueGroups.append('text')
+              .attr('y', contentBoxSize.height - 4)
+              .text(function(d) { return d.content; });
+            contentGroups.append('text')
               .attr('x', titleSize.width + 4)
-              .attr('y', valueSize.height - 5)
-              .text(function(d) { return d.value; });
+              .attr('y', contentBoxSize.height - 5)
+              .text(function(d) { return d.content; });
         } else {
-            fillValueFunc(valueGroups, valueSize);
+            options.fillContentFunc(contentGroups, contentBoxSize);
         }
         return callback();
     };
@@ -161,23 +173,23 @@ BadgeAdder.prototype.addBadges = function(
         titleTextSize = size;
         titleTestText.remove();
 
-        var valueTestText = svg.append('text')
+        var contentTestText = svg.append('text')
           .attr('font-size', '11')
           .attr('font-family', 'Open Sans')
           .attr('text-anchor', 'left')
-          .text(data[0].value);
+          .text(data[0].content);
         svgRuler.getSelectionSize(get_svg_html(svg), 'text', function(size) {
 
-            if (valueContentWidth === undefined) {
-                valueContentWidth = size.width;
+            if (options.contentWidth === undefined) {
+                options.contentWidth = size.width;
             }
 
-            var valueContentSize = {
-                width: valueContentWidth,
+            var contentContentSize = {
+                width: options.contentWidth,
                 height: titleTextSize.height
             };
-            valueTestText.remove();
-            addContent(titleTextSize, valueContentSize);
+            contentTestText.remove();
+            addContent(titleTextSize, contentContentSize);
 
         });
     });

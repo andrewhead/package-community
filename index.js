@@ -74,18 +74,18 @@ var getViewRates = function() {
 };
 
 
-var showValuesAsRectangles = function (valueGroups, groupSize) {
+var showValuesAsRectangles = function (valueGroups, contentBoxSize) {
     valueGroups.append('rect')
       .attr('fill-opacity', '.3')
       .attr('fill', '#010101')
       .attr('x', 4)
       .attr('y', 5)
       .attr('width', 0)
-      .attr('height', groupSize.height - 8)
+      .attr('height', contentBoxSize.height - 8)
       .append('animate')
         .attr('attributeName', 'width')
         .attr('from', 0)
-        .attr('to', groupSize.width - 10)
+        .attr('to', contentBoxSize.width - 10)
         .attr('dur', function(d) { return (3 / d.value).toFixed(2) + 's'; })
         .attr('repeatCount', 'indefinite');
     valueGroups.append('rect')
@@ -93,11 +93,11 @@ var showValuesAsRectangles = function (valueGroups, groupSize) {
       .attr('x', 4)
       .attr('y', 4)
       .attr('width', 0)
-      .attr('height', groupSize.height - 8)
+      .attr('height', contentBoxSize.height - 8)
       .append('animate')
         .attr('attributeName', 'width')
         .attr('from', 0)
-        .attr('to', groupSize.width - 10)
+        .attr('to', contentBoxSize.width - 10)
         .attr('dur', function(d) { return (3 / d.value).toFixed(2) + 's'; })
         .attr('repeatCount', 'indefinite');
 };
@@ -118,9 +118,10 @@ var makeVisualization = function (window, d3, callback) {
         .style('padding-top', '100px')
         .attr('xmlns', 'http://www.w3.org/2000/svg')
         .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    badgeAdder.addBadges(graph, data, "views", function() {
-        return callback();   
-    }, showValuesAsRectangles, 60);
+    badgeAdder.addBadges(graph, data, "views", callback, {
+        fillContentFunc: showValuesAsRectangles,
+        contentWidth: 60
+    });
 
 };
 
