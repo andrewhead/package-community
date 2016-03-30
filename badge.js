@@ -17,25 +17,37 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
         fillContentFunc: undefined,
         contentWidth: undefined,
         layout: {
+            margin: {
+                left: 40,
+                right: 40,
+                top: 40,
+                bottom: 40
+            },
             badgeWidth: 110,
             badgeHeight: 30,
             columnCount: 5,
             columnPadding: 15,
             rowPadding: 5,
-            rowCount: Math.ceil((data.length) / 5)
         }
     };
     var options = _.extend({}, defaultOptions, callerOptions);
 
+    // Compute number of rows automatically based on the number of columns and the data size
+    options.layout.rowCount = Math.ceil((data.length) / options.layout.columnCount);
+
     // Set size to let the SVG hold all the content
     var layout = options.layout;
     var width = (
+        layout.margin.left +
         layout.badgeWidth * layout.columnCount +
-        layout.columnPadding * (layout.columnCount - 1)
+        layout.columnPadding * (layout.columnCount - 1) +
+        layout.margin.right
     );
     var height = (
+        layout.margin.top + 
         layout.badgeHeight * layout.rowCount +
-        layout.rowPadding * (layout.rowCount - 1)
+        layout.rowPadding * (layout.rowCount - 1) +
+        layout.margin.bottom
     );
     svg.attr('width', width).attr('height', height);
 
@@ -64,8 +76,8 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
             .attr('transform', function(_, i) {
                 var row = Math.floor(i / layout.columnCount);
                 var col = i % layout.columnCount;
-                var x = col * (layout.badgeWidth + layout.columnPadding);
-                var y = row * (layout.badgeHeight + layout.rowPadding);
+                var x = layout.margin.left + col * (layout.badgeWidth + layout.columnPadding);
+                var y = layout.margin.top + row * (layout.badgeHeight + layout.rowPadding);
                 return 'translate(' + x + ',' + y + ')'; 
             });
 
