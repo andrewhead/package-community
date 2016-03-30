@@ -115,12 +115,33 @@ var makeVisualization = function (window, d3, callback) {
       .html('')
       .append('svg')
         .style('margin', 'auto')
-        .style('padding-top', '100px')
+        .style('padding-top', '30px')
         .attr('xmlns', 'http://www.w3.org/2000/svg')
         .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    badgeAdder.addBadges(graph, data, "views", callback, {
+
+    badgeAdder.addBadges(graph, data, "views", function(svg) {
+
+        var badgeHeight = svg.select('rect').attr('height');
+
+        svg.selectAll('g.badge')
+          .append('text')
+            .attr('font-size', '11')
+            .attr('font-family', 'Open Sans')
+            .attr('text-anchor', 'end')
+            .attr('dominant-baseline', 'middle')
+            .attr('x', -10)
+            .attr('y', badgeHeight / 2)
+            .text(function(d) { return d.tagName; });
+        return callback();
+    }, {
         fillContentFunc: showValuesAsRectangles,
-        contentWidth: 60
+        contentWidth: 60,
+        layout: {
+            columnCount: 1,
+            margin: {
+                left: 140,
+            }
+        }
     });
 
 };

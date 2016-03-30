@@ -1,4 +1,4 @@
-var _ = require('underscore');
+var _ = require('lodash');
 var SvgRuler = require('./svg_ruler').SvgRuler;
 var svgRuler = new SvgRuler();
 
@@ -23,33 +23,16 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
                 top: 40,
                 bottom: 40
             },
-            badgeWidth: 110,
-            badgeHeight: 30,
             columnCount: 5,
             columnPadding: 15,
-            rowPadding: 5,
+            rowPadding: 10,
         }
     };
-    var options = _.extend({}, defaultOptions, callerOptions);
+    var options = _.merge({}, defaultOptions, callerOptions);
 
     // Compute number of rows automatically based on the number of columns and the data size
     options.layout.rowCount = Math.ceil((data.length) / options.layout.columnCount);
-
-    // Set size to let the SVG hold all the content
     var layout = options.layout;
-    var width = (
-        layout.margin.left +
-        layout.badgeWidth * layout.columnCount +
-        layout.columnPadding * (layout.columnCount - 1) +
-        layout.margin.right
-    );
-    var height = (
-        layout.margin.top + 
-        layout.badgeHeight * layout.rowCount +
-        layout.rowPadding * (layout.rowCount - 1) +
-        layout.margin.bottom
-    );
-    svg.attr('width', width).attr('height', height);
 
     // Add fonts necessary to render the text
     var styleString = '';
@@ -66,8 +49,25 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
 
     var addContent = function(titleTextSize, contentSize) {
 
+        // Set the dimensions of the SVG and internal components based on the measured badge dimensions
         var titleSize = { width: titleTextSize.width + 10, height: titleTextSize.height + 8 };
         var contentBoxSize = { width: contentSize.width + 10, height: contentSize.height + 8 };
+        var badgeWidth = titleSize.width + contentBoxSize.width;
+        var badgeHeight = titleSize.height;
+
+        var width = (
+            layout.margin.left +
+            badgeWidth * layout.columnCount +
+            layout.columnPadding * (layout.columnCount - 1) +
+            layout.margin.right
+        );
+        var height = (
+            layout.margin.top + 
+            badgeHeight * layout.rowCount +
+            layout.rowPadding * (layout.rowCount - 1) +
+            layout.margin.bottom
+        );
+        svg.attr('width', width).attr('height', height);
 
         var badges = svg.selectAll('g').data(data);
         badges.enter()
@@ -76,19 +76,19 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
             .attr('transform', function(_, i) {
                 var row = Math.floor(i / layout.columnCount);
                 var col = i % layout.columnCount;
-                var x = layout.margin.left + col * (layout.badgeWidth + layout.columnPadding);
-                var y = layout.margin.top + row * (layout.badgeHeight + layout.rowPadding);
+                var x = layout.margin.left + col * (badgeWidth + layout.columnPadding);
+                var y = layout.margin.top + row * (badgeHeight + layout.rowPadding);
                 return 'translate(' + x + ',' + y + ')'; 
             });
 
-        var titleRects = badges.append('g');
+        var badgeRects = badges.append('g');
 
         // Badges based on reverse engineering the Shields.IO badge format.
         // See specification at:
         // https://github.com/badges/shields/blob/master/spec/SPECIFICATION.md
         // Also, see a rendered example at:
         // https://img.shields.io/badge/bowser-vanquished-brightgreen.svg
-        var gradients = titleRects.append('defs').append('linearGradient')
+        var gradients = badgeRects.append('defs').append('linearGradient')
           .attr('id', function(_, i) { return 'gradient' + i; })
           .attr('y2', "100%")
           .attr('x2', '0');
@@ -102,7 +102,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
           .attr('stop-opacity', '.1')
           .attr('offset', '1');
 
-        titleRects.append('mask')
+        badgeRects.append('mask')
           .attr('id', function(_, i) { return 'mask' + i; })
           .append('rect')
             .attr('fill', '#fff')
@@ -110,7 +110,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
             .attr('height', titleSize.height)
             .attr('width', titleSize.width + contentBoxSize.width);
 
-        var colorings = titleRects.append('g')
+        var colorings = badgeRects.append('g')
           .attr('mask', function(_, i) { return 'url(#mask' + i + ')'; });
 
         colorings.append('path')
@@ -127,7 +127,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
                 ' v ' + titleSize.height + ' H 0 z')
           .attr('fill', function(_, i) { return 'url(#gradient' + i + ')'; });
 
-        var titleGroups = titleRects.append('g')
+        var titleGroups = badgeRects.append('g')
           .attr('font-size', '11')
           .attr('font-family', 'Open Sans')
           .attr('text-anchor', 'left')
@@ -145,7 +145,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
           .attr('y', titleSize.height - 5)
           .text(titleText);
 
-        var contentGroups = titleRects.append('g')
+        var contentGroups = badgeRects.append('g')
           .attr('font-size', '11')
           .attr('font-family', 'Open Sans')
           .attr('text-anchor', 'left')
@@ -167,7 +167,10 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
         } else {
             options.fillContentFunc(contentGroups, contentBoxSize);
         }
-        return callback();
+
+        // Now that the badges have been added, return the finished SVG
+        return callback(svg);
+
     };
 
 
