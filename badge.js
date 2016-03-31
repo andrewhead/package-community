@@ -159,11 +159,11 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
               .attr('fill', '#010101')
               .attr('x', titleSize.width + 4)
               .attr('y', contentBoxSize.height - 4)
-              .text(function(d) { return d.content; });
+              .text(function(d) { return d.value; });
             contentGroups.append('text')
               .attr('x', titleSize.width + 4)
               .attr('y', contentBoxSize.height - 5)
-              .text(function(d) { return d.content; });
+              .text(function(d) { return d.value; });
         } else {
             options.fillContentFunc(contentGroups, contentBoxSize);
         }

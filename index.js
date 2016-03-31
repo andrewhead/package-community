@@ -106,9 +106,82 @@ var showValuesAsRectangles = function (valueGroups, contentBoxSize) {
 };
 
 
-/**
- * Create visualization and insert it into the window of the page.
- */
+var makeTaskBadges = function (window, d3, callback) {
+
+    var data = TASK_DATA;
+    data.forEach(function(packageEntry) {
+        packageEntry.value = packageEntry.tasks;
+    });
+
+    var cycleTasks = function(contentGroups, contentSize) {
+
+        var animate = function(selection) {
+            // A lot of complicated syntax to basically mean "cycle through all strings"
+            selection.append('animate')                
+              .attr('dur', function(d) { return d.groupSize + 's'; })
+              .attr('attributeName', 'fill-opacity')
+              .attr('keyTimes', function(d, i) {
+                  var attack = 0.2 / d.groupSize;
+                  var sustain = 0.6 / d.groupSize;
+                  var release = 0.2 / d.groupSize;
+                  var period = attack + sustain + release;
+                  var onset = i * period;
+                  return [0, onset, onset + attack, onset + attack + sustain, onset + attack + sustain + release, 1].join(';');
+              }).attr('values', [0, 0, 1, 1, 0, 0].join(';'))
+              .attr('repeatCount', 'indefinite');
+        };
+
+        var messages = contentGroups.selectAll('g')
+          .data(function(d) {
+              return d.value.map(function(task) {
+                  return { 
+                      groupSize: d.value.length,
+                      task: task
+                  };
+              }); 
+          }).enter()
+            .append('g');
+            
+        messages.append('text')
+          .attr('x', 4)
+          .attr('y', contentSize.height - 4)
+          .attr('fill-opacity', '.3')
+          .attr('fill', '#010101')
+          .text(function(d) { return d.task; })
+          .call(animate);
+
+        messages.append('text')
+          .attr('x', 4)
+          .attr('y', contentSize.height - 5)
+          .attr('fill-opacity', '0')
+          .text(function(d) { return d.task; })
+          .call(animate);
+
+    };
+
+    var graph = d3.select('body')
+      .html('')
+      .append('div')
+        .append('svg')
+          .style('display', 'block')
+          .style('margin', 'auto')
+          .style('padding-top', '30px')
+          .attr('xmlns', 'http://www.w3.org/2000/svg')
+          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    badgeAdder.addBadges(graph, data, "tasks", function(svg) {
+        return callback();
+    }, {
+        layout: {
+            columnCount: 1,
+        },
+        contentWidth: 120,
+        fillContentFunc: cycleTasks
+    });
+
+};
+
+
 var makeViewBadges = function (window, d3, callback) {
 
     var data = getViewRates();
@@ -184,7 +257,7 @@ http.createServer(function(request, response) {
     if (pathname === '/' || pathname === '/views') {
         fillPage(makeViewBadges);
     } else if (pathname === '/tasks') {
-        fillPage(makeViewBadges);   
+        fillPage(makeTaskBadges);   
     } else {
         response.statusCode = 404;
         response.end();
