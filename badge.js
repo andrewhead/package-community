@@ -1,4 +1,5 @@
 var _ = require('lodash');
+var d3 = require('d3');
 var SvgRuler = require('./svg_ruler').SvgRuler;
 var svgRuler = new SvgRuler();
 
@@ -16,6 +17,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
     var defaultOptions = {
         fillContentFunc: undefined,
         contentWidth: undefined,
+        valueRange: undefined,  // if you want colors to vary by value
         layout: {
             margin: {
                 left: 40,
@@ -33,6 +35,17 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
     // Compute number of rows automatically based on the number of columns and the data size
     options.layout.rowCount = Math.ceil((data.length) / options.layout.columnCount);
     var layout = options.layout;
+
+    // Colors determined from the mask colors on the shields main site:
+    // http://shields.io/
+    var colors;
+    if (options.valueRange !== undefined) {
+        colors = d3.scale.quantize()
+          .domain(options.valueRange)
+          .range(['#4c1', '#97ca00', '#94a61d', '#dfb317', '#fe7d37', '#e05d44']);
+    } else {
+        colors = function() { return '#4c1'; };  // green
+    }
 
     // Add fonts necessary to render the text
     var styleString = '';
@@ -121,7 +134,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
                 ' h ' + contentBoxSize.width +
                 ' v ' + contentBoxSize.height +
                 ' H ' + titleSize.width + ' z')
-          .attr('fill', '#4c1');
+          .attr('fill', function(d) { return colors(d.value); });
         colorings.append('path')
           .attr('d', 'M 0 0 h ' + (titleSize.width + contentBoxSize.width) + 
                 ' v ' + titleSize.height + ' H 0 z')

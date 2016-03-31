@@ -201,6 +201,7 @@ var makeViewBadges = function (window, d3, callback) {
 
         var badgeHeight = svg.select('rect').attr('height');
 
+        // Add labels
         svg.selectAll('g.badge')
           .append('text')
             .attr('font-size', '11')
@@ -216,6 +217,7 @@ var makeViewBadges = function (window, d3, callback) {
     }, {
         fillContentFunc: showValuesAsRectangles,
         contentWidth: 60,
+        valueRange: [2.5, 0.1],
         layout: {
             columnCount: 2,
             margin: {
