@@ -1,12 +1,8 @@
 var _ = require('lodash');
 var d3 = require('d3');
-var SvgRuler = require('./svg_ruler').SvgRuler;
-var svgRuler = new SvgRuler();
+var measureTextWidth = require('./measure-text');
 
-var BadgeAdder = function() {
-    return;
-};
-
+var BadgeAdder = function() { return; };
 
 /**
  * SVG should be a D3 selection of an SVG.
@@ -47,24 +43,11 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
         colors = function() { return '#4c1'; };  // green
     }
 
-    // Add fonts necessary to render the text
-    var styleString = '';
-    var fontIndex;
-    var FONT_URLS = ['http://fonts.googleapis.com/css?family=Open+Sans'];
-    for (fontIndex = 0; fontIndex < FONT_URLS.length; fontIndex++) {
-        if (fontIndex !== 0) {
-            styleString += '\n';
-        }
-        styleString += ("@import url(" + FONT_URLS[fontIndex] + ");");
-    }
-    svg.append('style')
-      .html(styleString);
-
-    var addContent = function(titleTextSize, contentSize) {
+    var addContent = function(titleTextWidth, contentWidth) {
 
         // Set the dimensions of the SVG and internal components based on the measured badge dimensions
-        var titleSize = { width: titleTextSize.width + 10, height: titleTextSize.height + 8 };
-        var contentBoxSize = { width: contentSize.width + 10, height: contentSize.height + 8 };
+        var titleSize = { width: titleTextWidth + 10, height: 20 };
+        var contentBoxSize = { width: contentWidth + 10, height: 20 };
         var badgeWidth = titleSize.width + contentBoxSize.width;
         var badgeHeight = titleSize.height;
 
@@ -142,7 +125,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
 
         var titleGroups = badgeRects.append('g')
           .attr('font-size', '11')
-          .attr('font-family', 'Open Sans')
+          .attr('font-family', 'DejaVu Sans,Verdana,Geneva,sans-serif')
           .attr('text-anchor', 'left')
           .attr('fill', '#fff');
 
@@ -160,7 +143,7 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
 
         var contentGroups = badgeRects.append('g')
           .attr('font-size', '11')
-          .attr('font-family', 'Open Sans')
+          .attr('font-family', 'DejaVu Sans,Verdana,Geneva,sans-serif')
           .attr('text-anchor', 'left')
           .attr('fill', '#fff')
           .attr('transform', 'translate(' + titleSize.width + ',0)');
@@ -170,11 +153,11 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
               .attr('class', 'content_text')
               .attr('fill-opacity', '.3')
               .attr('fill', '#010101')
-              .attr('x', titleSize.width + 4)
+              .attr('x', 4)
               .attr('y', contentBoxSize.height - 4)
               .text(function(d) { return d.value; });
             contentGroups.append('text')
-              .attr('x', titleSize.width + 4)
+              .attr('x', 4)
               .attr('y', contentBoxSize.height - 5)
               .text(function(d) { return d.value; });
         } else {
@@ -186,41 +169,11 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
 
     };
 
-
-    var get_svg_html = function(svg_selection) {
-        return svg_selection[0].parentNode.outerHTML;
-    };
-    var titleTestText = svg.append('text')
-      .attr('font-size', '11')
-      .attr('font-family', 'Open Sans')
-      .attr('text-anchor', 'left')
-      .text(titleText);
-    var titleTextSize;
-    svgRuler.getSelectionSize(get_svg_html(svg), 'text', function(size) {
-
-        titleTextSize = size;
-        titleTestText.remove();
-
-        var contentTestText = svg.append('text')
-          .attr('font-size', '11')
-          .attr('font-family', 'Open Sans')
-          .attr('text-anchor', 'left')
-          .text(data[0].content);
-        svgRuler.getSelectionSize(get_svg_html(svg), 'text', function(size) {
-
-            if (options.contentWidth === undefined) {
-                options.contentWidth = size.width;
-            }
-
-            var contentContentSize = {
-                width: options.contentWidth,
-                height: titleTextSize.height
-            };
-            contentTestText.remove();
-            addContent(titleTextSize, contentContentSize);
-
-        });
-    });
+    var titleTextWidth = measureTextWidth(titleText);
+    if (options.contentWidth === undefined) {
+        options.contentWidth = measureTextWidth(String(data[0].value));
+    }
+    addContent(titleTextWidth, options.contentWidth);
 
 };
 

@@ -4,18 +4,31 @@
  * is based heavily on example code by dotob at 
  * https://gist.github.com/dotob/37b80cbbd9f0e1f135db
  */
+// Load external packages
 var http = require('http');
 var url = require('url');
 var d3 = require('d3');
 var jsdom = require('jsdom');
 
-var SvgRuler = require('./svg_ruler').SvgRuler;
-var BadgeAdder = require('./badge').BadgeAdder;
-
-
+// Load dump data (temporary until this is replaced with database access)
 var POST_DATA = require('./data/dump.node_post_stats2016-03-22_21:31:52.json');
 var TASK_DATA = require('./data/example_tasks.json');
-var svgRuler = new SvgRuler();
+
+// Connect to the database
+var postgresConfig = require('./reader-pg-config.json');
+var knex = require('knex')({
+    dialect: 'postgres',
+    connection: {
+        host: postgresConfig.host,
+        port: postgresConfig.port,
+        user: postgresConfig.username,
+        password: postgresConfig.password,
+        database: postgresConfig.database,
+    },
+});
+
+// Create global utilities
+var BadgeAdder = require('./badge').BadgeAdder;
 var badgeAdder = new BadgeAdder();
 
 
@@ -106,6 +119,24 @@ var showValuesAsRectangles = function (valueGroups, contentBoxSize) {
 };
 
 
+var addLabels = function(callback) {
+    return function(svg) {
+        // Add labels for the tag names
+        var badgeHeight = svg.select('rect').attr('height');
+        svg.selectAll('g.badge')
+          .append('text')
+            .attr('font-size', '11')
+            .attr('font-family', 'DejaVu Sans,Verdana,Geneva,sans-serif')
+            .attr('text-anchor', 'end')
+            .attr('dominant-baseline', 'middle')
+            .attr('x', -10)
+            .attr('y', badgeHeight / 2)
+            .text(function(d) { return d.tagName; });
+        callback();
+    };
+};
+
+
 var makeTaskBadges = function (window, d3, callback) {
 
     var data = TASK_DATA;
@@ -182,6 +213,54 @@ var makeTaskBadges = function (window, d3, callback) {
 };
 
 
+var makeSinceBadges = function (window, d3, callback) {
+
+    var graph = d3.select('body')
+      .html('')
+      .append('div')
+        .append('svg')
+          .style('display', 'block')
+          .style('margin', 'auto')
+          .style('padding-top', '30px')
+          .attr('xmlns', 'http://www.w3.org/2000/svg')
+          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    knex('webpageversion')
+        .select('package')
+        .min('timestamp as first_timestamp')
+        .groupBy('package')
+        // This fetch index gets the most recent, clean, complete search results at the time
+        // that I coded this.  We don't filter based on the fetch index of webpageversion---
+        // the fetcher for this doesn't insert duplicate timestamp-URL pairs.
+        .where({
+            'search.fetch_index': 22,
+        })
+        .join('searchresult', 'webpageversion.url', 'searchresult.url')
+        .join('search', 'search_id', 'search.id')
+        .orderBy('first_timestamp', 'asc')
+    .then(function(results) {
+
+        var data = results.map(function(row) {
+            return {
+                tagName: row.package,
+                value: row.first_timestamp.getUTCFullYear()
+            };
+        });
+
+        badgeAdder.addBadges(graph, data, "documented since", addLabels(callback), {
+            layout: {
+                columnCount: 2,
+                margin: {
+                    left: 140,
+                },
+                columnPadding: 140
+            }
+        });
+    });
+
+};
+
+
 var makeViewBadges = function (window, d3, callback) {
 
     var data = getViewRates();
@@ -197,24 +276,7 @@ var makeViewBadges = function (window, d3, callback) {
           .attr('xmlns', 'http://www.w3.org/2000/svg')
           .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-    badgeAdder.addBadges(graph, data, "views", function(svg) {
-
-        var badgeHeight = svg.select('rect').attr('height');
-
-        // Add labels
-        svg.selectAll('g.badge')
-          .append('text')
-            .attr('font-size', '11')
-            .attr('font-family', 'Open Sans')
-            .attr('text-anchor', 'end')
-            .attr('dominant-baseline', 'middle')
-            .attr('x', -10)
-            .attr('y', badgeHeight / 2)
-            .text(function(d) { return d.tagName; });
-
-        return callback();
-
-    }, {
+    badgeAdder.addBadges(graph, data, "views", addLabels(callback), {
         fillContentFunc: showValuesAsRectangles,
         contentWidth: 60,
         valueRange: [2.5, 0.1],
@@ -260,6 +322,8 @@ http.createServer(function(request, response) {
         fillPage(makeViewBadges);
     } else if (pathname === '/tasks') {
         fillPage(makeTaskBadges);   
+    } else if (pathname === '/since') {
+        fillPage(makeSinceBadges);
     } else {
         response.statusCode = 404;
         response.end();

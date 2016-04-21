@@ -36,5 +36,11 @@ node_modules
 .*.swp
 .*.swo
 
+# Copyrighted files
+Verdana.ttf
+
 # Mounted data directory
 data
+
+# Postgres credentials
+*-pg-config.json
