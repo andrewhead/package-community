@@ -14,6 +14,16 @@ var jsdom = require('jsdom');
 var POST_DATA = require('./data/dump.node_post_stats2016-03-22_21:31:52.json');
 var TASK_DATA = require('./data/example_tasks.json');
 
+// Load other miscellaneous data
+var PACKAGE_TAGS = require('./package-tags.json');
+
+// Start the redis server for caching
+var redis = require('redis');
+var redisClient = redis.createClient();
+var dataKeyName = function(basename) {
+    return 'package-community:data:' + basename;
+};
+
 // Connect to the database
 var postgresConfig = require('./reader-pg-config.json');
 var knex = require('knex')({
@@ -87,6 +97,19 @@ var getViewRates = function() {
     }
 
     return averageViewRates;
+};
+
+
+var makeD3Doc = function(d3) {
+    return d3.select('body')
+      .html('')
+      .append('div')
+        .append('svg')
+          .style('display', 'block')
+          .style('margin', 'auto')
+          .style('padding-top', '30px')
+          .attr('xmlns', 'http://www.w3.org/2000/svg')
+          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 };
 
 
@@ -190,17 +213,8 @@ var makeTaskBadges = function (window, d3, callback) {
 
     };
 
-    var graph = d3.select('body')
-      .html('')
-      .append('div')
-        .append('svg')
-          .style('display', 'block')
-          .style('margin', 'auto')
-          .style('padding-top', '30px')
-          .attr('xmlns', 'http://www.w3.org/2000/svg')
-          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-    badgeAdder.addBadges(graph, data, "tasks", function(svg) {
+    var doc = makeD3Doc(d3);
+    badgeAdder.addBadges(doc, data, "tasks", function(svg) {
         return callback();
     }, {
         layout: {
@@ -215,15 +229,7 @@ var makeTaskBadges = function (window, d3, callback) {
 
 var makeSinceBadges = function (window, d3, callback) {
 
-    var graph = d3.select('body')
-      .html('')
-      .append('div')
-        .append('svg')
-          .style('display', 'block')
-          .style('margin', 'auto')
-          .style('padding-top', '30px')
-          .attr('xmlns', 'http://www.w3.org/2000/svg')
-          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    var doc = makeD3Doc(d3);
 
     knex('webpageversion')
         .select('package')
@@ -247,7 +253,7 @@ var makeSinceBadges = function (window, d3, callback) {
             };
         });
 
-        badgeAdder.addBadges(graph, data, "documented since", addLabels(callback), {
+        badgeAdder.addBadges(doc, data, "documented since", addLabels(callback), {
             layout: {
                 columnCount: 2,
                 margin: {
@@ -261,22 +267,67 @@ var makeSinceBadges = function (window, d3, callback) {
 };
 
 
+var makeAnswerBadges = function (window, d3, callback) {
+
+    var doc = makeD3Doc(d3);
+    var addBadges = function(data) {
+        badgeAdder.addBadges(doc, data, "stack overflow answer %", addLabels(callback), {
+            layout: {
+                columnCount: 2,
+                margin: {
+                    left: 140,
+                },
+                columnPadding: 140
+            }
+        });
+    };
+
+    // We use caching here as the query below is pretty expensive.
+    redisClient.get(dataKeyName('answer_rates'), function(err, reply) {
+        var data;
+        if (err) {
+            return callback(err);
+        }
+        if (reply !== null) {
+            data = JSON.parse(reply);
+            addBadges(data);
+        } else {
+            knex('questionsnapshot')
+                .select(
+                    'tag_name',
+                    knex.raw("COUNT(CASE WHEN (answer_count > 0) " +
+                        "THEN true ELSE NULL END)::decimal / COUNT(*) AS ratio")
+                )
+                .join('questionsnapshottag', 'questionsnapshot.id', 'question_snapshot_id')
+                .join('tag', 'tag.id', 'tag_id')
+                // This is an arbitrary fetch of the question snapshots in the past.
+                .where('fetch_index', 13)
+                .whereIn('tag_name', PACKAGE_TAGS)
+                .groupBy('tag_name')
+                .orderBy('ratio', 'desc')
+            .then(function(results) {
+                data = results.map(function(row) {
+                    return {
+                        tagName: row.tag_name,
+                        value: String((row.ratio * 100).toFixed(1)) + '%' 
+                    };
+                });
+                redisClient.set(dataKeyName('answer_rates'), JSON.stringify(data));
+                addBadges(data);
+            });
+        }
+    });
+
+};
+
+
 var makeViewBadges = function (window, d3, callback) {
 
     var data = getViewRates();
     data.sort(function(a, b) { return b.value - a.value; });
 
-    var graph = d3.select('body')
-      .html('')
-      .append('div')
-        .append('svg')
-          .style('display', 'block')
-          .style('margin', 'auto')
-          .style('padding-top', '30px')
-          .attr('xmlns', 'http://www.w3.org/2000/svg')
-          .attr('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-    badgeAdder.addBadges(graph, data, "views", addLabels(callback), {
+    var doc = makeD3Doc(d3);
+    badgeAdder.addBadges(doc, data, "views", addLabels(callback), {
         fillContentFunc: showValuesAsRectangles,
         contentWidth: 60,
         valueRange: [2.5, 0.1],
@@ -324,6 +375,8 @@ http.createServer(function(request, response) {
         fillPage(makeTaskBadges);   
     } else if (pathname === '/since') {
         fillPage(makeSinceBadges);
+    } else if (pathname === '/answers') {
+        fillPage(makeAnswerBadges);   
     } else {
         response.statusCode = 404;
         response.end();
