@@ -4,6 +4,14 @@ var measureTextWidth = require('./measure-text');
 
 var BadgeAdder = function() { return; };
 
+
+var getDisplayValue = function(d) {
+    if (d._badgeAdderIsPercent === true) {
+        return String((d.value * 100).toFixed(1)) + '%';
+    }
+    return d.value;
+};
+
 /**
  * SVG should be a D3 selection of an SVG.
  * D3 methods will be called extensively on this object.
@@ -12,8 +20,12 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
     
     var defaultOptions = {
         fillContentFunc: undefined,
+        displayValue: undefined,
         contentWidth: undefined,
+        contentPadding: 0,
+        contentOffset: 0,
         valueRange: undefined,  // if you want colors to vary by value
+        isPercent: false,
         layout: {
             margin: {
                 left: 40,
@@ -31,6 +43,13 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
     // Compute number of rows automatically based on the number of columns and the data size
     options.layout.rowCount = Math.ceil((data.length) / options.layout.columnCount);
     var layout = options.layout;
+
+    // Propagate whether this value represents a percentage
+    if (options.isPercent === true) {
+        data.forEach(function(d) {
+            d._badgeAdderIsPercent = true;
+        });
+    }
 
     // Colors determined from the mask colors on the shields main site:
     // http://shields.io/
@@ -148,19 +167,20 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
           .attr('fill', '#fff')
           .attr('transform', 'translate(' + titleSize.width + ',0)');
 
-        if (options.fillContentFunc === undefined) {
+        if (options.fillContentFunc === undefined || options.displayValue) {
             contentGroups.append('text')
               .attr('class', 'content_text')
               .attr('fill-opacity', '.3')
               .attr('fill', '#010101')
-              .attr('x', 4)
+              .attr('x', 4 + options.contentOffset)
               .attr('y', contentBoxSize.height - 4)
-              .text(function(d) { return d.value; });
+              .text(getDisplayValue);
             contentGroups.append('text')
-              .attr('x', 4)
+              .attr('x', 4 + options.contentOffset)
               .attr('y', contentBoxSize.height - 5)
-              .text(function(d) { return d.value; });
-        } else {
+              .text(getDisplayValue);
+        }
+        if (options.fillContentFunc !== undefined) {
             options.fillContentFunc(contentGroups, contentBoxSize);
         }
 
@@ -170,10 +190,12 @@ BadgeAdder.prototype.addBadges = function(svg, data, titleText, callback, caller
     };
 
     var titleTextWidth = measureTextWidth(titleText);
-    if (options.contentWidth === undefined) {
-        options.contentWidth = measureTextWidth(String(data[0].value));
+    var contentWidth = options.contentWidth;
+    if (contentWidth === undefined) {
+        contentWidth = measureTextWidth(getDisplayValue(data[0]));
     }
-    addContent(titleTextWidth, options.contentWidth);
+    contentWidth += options.contentPadding;
+    addContent(titleTextWidth, contentWidth);
 
 };
 

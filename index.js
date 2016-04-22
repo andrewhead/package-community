@@ -113,7 +113,7 @@ var makeD3Doc = function(d3) {
 };
 
 
-var showValuesAsRectangles = function (valueGroups, contentBoxSize) {
+var fillAnimatedRectangles = function (valueGroups, contentBoxSize) {
     valueGroups.append('rect')
       .attr('fill-opacity', '.3')
       .attr('fill', '#010101')
@@ -214,9 +214,7 @@ var makeTaskBadges = function (window, d3, callback) {
     };
 
     var doc = makeD3Doc(d3);
-    badgeAdder.addBadges(doc, data, "tasks", function(svg) {
-        return callback();
-    }, {
+    badgeAdder.addBadges(doc, data, "tasks", callback, {
         layout: {
             columnCount: 1,
         },
@@ -249,7 +247,7 @@ var makeSinceBadges = function (window, d3, callback) {
         var data = results.map(function(row) {
             return {
                 tagName: row.package,
-                value: row.first_timestamp.getUTCFullYear()
+                value: String(row.first_timestamp.getUTCFullYear())
             };
         });
 
@@ -269,9 +267,44 @@ var makeSinceBadges = function (window, d3, callback) {
 
 var makeAnswerBadges = function (window, d3, callback) {
 
+    var BAR_WIDTH = 16;
+    var BAR_PADDING = 5;
+
+    var fillPercentageBars = function (valueGroups, contentBoxSize) {
+        var outlineHeight = contentBoxSize.height - 8;
+        valueGroups.append('rect')
+          .attr('fill', 'none')
+          .attr('stroke', '#010101')
+          .attr('stroke-width', '2')
+          .attr('x', 4)
+          .attr('y', 5)
+          .attr('width', BAR_WIDTH)
+          .attr('height', outlineHeight);
+        valueGroups.append('rect')
+          .attr('fill', 'none')
+          .attr('stroke', 'white')
+          .attr('stroke-width', '2')
+          .attr('x', 4)
+          .attr('y', 4)
+          .attr('width', BAR_WIDTH)
+          .attr('height', outlineHeight);
+        valueGroups.append('rect')
+          .attr('fill', 'white')
+          .attr('x', 4)
+          .attr('width', BAR_WIDTH)
+          .attr('height', function(d) { return d.value * outlineHeight; })
+          .attr('y', function(d) { return 4 + (1 - d.value) * outlineHeight; });
+    };  
+
     var doc = makeD3Doc(d3);
     var addBadges = function(data) {
         badgeAdder.addBadges(doc, data, "stack overflow answer %", addLabels(callback), {
+            fillContentFunc: fillPercentageBars,
+            displayValue: true,
+            isPercent: true,
+            contentPadding: BAR_WIDTH + BAR_PADDING,
+            contentOffset: BAR_WIDTH + BAR_PADDING,
+            valueRange: [1, 0.25],
             layout: {
                 columnCount: 2,
                 margin: {
@@ -283,7 +316,7 @@ var makeAnswerBadges = function (window, d3, callback) {
     };
 
     // We use caching here as the query below is pretty expensive.
-    redisClient.get(dataKeyName('answer_rates'), function(err, reply) {
+    redisClient.get(dataKeyName('answer-rates'), function(err, reply) {
         var data;
         if (err) {
             return callback(err);
@@ -309,10 +342,10 @@ var makeAnswerBadges = function (window, d3, callback) {
                 data = results.map(function(row) {
                     return {
                         tagName: row.tag_name,
-                        value: String((row.ratio * 100).toFixed(1)) + '%' 
+                        value: row.ratio,
                     };
                 });
-                redisClient.set(dataKeyName('answer_rates'), JSON.stringify(data));
+                redisClient.set(dataKeyName('answer-rates'), JSON.stringify(data));
                 addBadges(data);
             });
         }
@@ -328,7 +361,7 @@ var makeViewBadges = function (window, d3, callback) {
 
     var doc = makeD3Doc(d3);
     badgeAdder.addBadges(doc, data, "views", addLabels(callback), {
-        fillContentFunc: showValuesAsRectangles,
+        fillContentFunc: fillAnimatedRectangles,
         contentWidth: 60,
         valueRange: [2.5, 0.1],
         layout: {
