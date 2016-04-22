@@ -113,6 +113,35 @@ var makeD3Doc = function(d3) {
 };
 
 
+var PERCENTAGE_BAR_WIDTH = 16;
+var PERCENTAGE_BAR_PADDING = 5;
+var fillPercentageBars = function (valueGroups, contentBoxSize) {
+    var outlineHeight = contentBoxSize.height - 8;
+    valueGroups.append('rect')
+      .attr('fill', 'none')
+      .attr('stroke', '#010101')
+      .attr('stroke-width', '1')
+      .attr('x', 4)
+      .attr('y', 5)
+      .attr('width', PERCENTAGE_BAR_WIDTH)
+      .attr('height', outlineHeight);
+    valueGroups.append('rect')
+      .attr('fill', 'none')
+      .attr('stroke', 'white')
+      .attr('stroke-width', '1')
+      .attr('x', 4)
+      .attr('y', 4)
+      .attr('width', PERCENTAGE_BAR_WIDTH)
+      .attr('height', outlineHeight);
+    valueGroups.append('rect')
+      .attr('fill', 'white')
+      .attr('x', 4)
+      .attr('width', PERCENTAGE_BAR_WIDTH)
+      .attr('height', function(d) { return d.value * outlineHeight; })
+      .attr('y', function(d) { return 4 + (1 - d.value) * outlineHeight; });
+};  
+
+
 var fillAnimatedRectangles = function (valueGroups, contentBoxSize) {
     valueGroups.append('rect')
       .attr('fill-opacity', '.3')
@@ -267,34 +296,6 @@ var makeSinceBadges = function (window, d3, callback) {
 
 var makeAnswerBadges = function (window, d3, callback) {
 
-    var BAR_WIDTH = 16;
-    var BAR_PADDING = 5;
-
-    var fillPercentageBars = function (valueGroups, contentBoxSize) {
-        var outlineHeight = contentBoxSize.height - 8;
-        valueGroups.append('rect')
-          .attr('fill', 'none')
-          .attr('stroke', '#010101')
-          .attr('stroke-width', '2')
-          .attr('x', 4)
-          .attr('y', 5)
-          .attr('width', BAR_WIDTH)
-          .attr('height', outlineHeight);
-        valueGroups.append('rect')
-          .attr('fill', 'none')
-          .attr('stroke', 'white')
-          .attr('stroke-width', '2')
-          .attr('x', 4)
-          .attr('y', 4)
-          .attr('width', BAR_WIDTH)
-          .attr('height', outlineHeight);
-        valueGroups.append('rect')
-          .attr('fill', 'white')
-          .attr('x', 4)
-          .attr('width', BAR_WIDTH)
-          .attr('height', function(d) { return d.value * outlineHeight; })
-          .attr('y', function(d) { return 4 + (1 - d.value) * outlineHeight; });
-    };  
 
     var doc = makeD3Doc(d3);
     var addBadges = function(data) {
@@ -302,8 +303,8 @@ var makeAnswerBadges = function (window, d3, callback) {
             fillContentFunc: fillPercentageBars,
             displayValue: true,
             isPercent: true,
-            contentPadding: BAR_WIDTH + BAR_PADDING,
-            contentOffset: BAR_WIDTH + BAR_PADDING,
+            contentPadding: PERCENTAGE_BAR_WIDTH + PERCENTAGE_BAR_PADDING,
+            contentOffset: PERCENTAGE_BAR_WIDTH + PERCENTAGE_BAR_PADDING,
             valueRange: [1, 0.25],
             layout: {
                 columnCount: 2,
@@ -353,6 +354,88 @@ var makeAnswerBadges = function (window, d3, callback) {
 
 };
 
+
+var makeResultsBadges = function (window, d3, callback) {
+
+    var doc = makeD3Doc(d3);
+    var addBadges = function(data) {
+        badgeAdder.addBadges(doc, data, "google results with code", addLabels(callback), {
+            fillContentFunc: fillPercentageBars,
+            displayValue: true,
+            isPercent: true,
+            valueRange: [1, 0],
+            contentPadding: PERCENTAGE_BAR_WIDTH + PERCENTAGE_BAR_PADDING,
+            contentOffset: PERCENTAGE_BAR_WIDTH + PERCENTAGE_BAR_PADDING,
+            layout: {
+                columnCount: 2,
+                margin: {
+                    left: 140,
+                },
+                columnPadding: 140
+            }
+        });
+    };
+
+    // We use caching here as the query below is pretty expensive.
+    redisClient.get(dataKeyName('results'), function(err, reply) {
+        var data;
+        if (err) {
+            return callback(err);
+        }
+        if (reply !== null) {
+            data = JSON.parse(reply);
+            addBadges(data);
+        } else {
+            knex.select(
+                'package',
+                knex.raw("SUM(pages_with_code) / (SUM(pages_with_code) + SUM(pages_without_code))::decimal AS ratio")
+              )
+              .groupBy('package')
+              .orderBy('ratio', 'desc')
+              .from(function() {
+                this.select('package', 'web_page_url')
+                .count('page_has_code AS pages_with_code')
+                .count('page_missing_code AS pages_without_code')
+                .from(function() {
+                  this.select(
+                    'webpagecontent.url AS web_page_url',
+                    knex.raw("BOOL_OR(CASE WHEN (compute_index IS NULL) THEN true ELSE NULL END) AS page_missing_code"),
+                    // The value of the compute index below is the index of the most recent complete
+                    // extraction of code from web pages at the time of writing this code.
+                    knex.raw("BOOL_OR(CASE WHEN (compute_index = 3) THEN true ELSE NULL END) AS page_has_code")
+                  )
+                  .from('webpagecontent')
+                  .leftOuterJoin('code', 'web_page_id', 'webpagecontent.id')
+                  // The following joins are just here so that we can restrict ourselves to only the web page
+                  // content associated with a single search results fetch.  Fetch index 13 was the search
+                  // results fetch at which the largest group of web page content was fetched.
+                  .join('searchresultcontent', 'content_id', 'webpagecontent.id')
+                  .join('searchresult', 'search_result_id', 'searchresult.id')
+                  .join('search', 'search_id', 'search.id')
+                  .where('search.fetch_index', 13)
+                  .groupBy('webpagecontent.id')
+                  .as('pages_have_code');
+                })
+                .join('searchresult', 'web_page_url', 'searchresult.url')
+                .join('search', 'search.id', 'search_id')
+                .where('search.fetch_index', 13)
+                .groupBy('web_page_url', 'package')
+                .as('page_occurrences_with_code');
+              })
+            .then(function(results) {
+                data = results.map(function(row) {
+                    return {
+                        tagName: row.package,
+                        value: row.ratio,
+                    };
+                });
+                redisClient.set(dataKeyName('results'), JSON.stringify(data));
+                addBadges(data);
+            });
+        }
+    });
+
+};
 
 var makeViewBadges = function (window, d3, callback) {
 
@@ -410,6 +493,8 @@ http.createServer(function(request, response) {
         fillPage(makeSinceBadges);
     } else if (pathname === '/answers') {
         fillPage(makeAnswerBadges);   
+    } else if (pathname === '/results') {
+        fillPage(makeResultsBadges);   
     } else {
         response.statusCode = 404;
         response.end();
